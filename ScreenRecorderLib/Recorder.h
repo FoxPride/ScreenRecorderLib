@@ -73,7 +73,9 @@ namespace ScreenRecorderLib {
 		///<summary>Record one PNG picture for each frame. </summary>
 		Slideshow = MODE_SLIDESHOW,
 		///<summary>Create a screenshot. This can not be used on a video recording in progress. Set a snapshot interval in VideoOptions to get snapshots from a runnning Recorder instance.</summary>
-		Snapshot = MODE_SNAPSHOT
+		Snapshot = MODE_SNAPSHOT,
+		///<summary>Create a gif. </summary>
+		Gif = MODE_GIF		
 	};
 	public enum class H264Profile
 	{

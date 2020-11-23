@@ -164,6 +164,7 @@
     <ClInclude Include="audio_prefs.h" />
     <ClInclude Include="cleanup.h" />
     <ClInclude Include="fifo_map.h" />
+    <ClInclude Include="gif.h" />
     <ClInclude Include="log.h" />
     <ClInclude Include="internal_recorder.h" />
     <ClInclude Include="loopback_capture.h" />
@@ -188,6 +189,7 @@
       <CompileAsManaged Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">false</CompileAsManaged>
       <CompileAsManaged Condition="'$(Configuration)|$(Platform)'=='Release|x64'">false</CompileAsManaged>
     </ClCompile>
+    <ClCompile Include="gif.cpp" />
     <ClCompile Include="internal_recorder.cpp">
       <CompileAsManaged Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">false</CompileAsManaged>
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">NotUsing</PrecompiledHeader>

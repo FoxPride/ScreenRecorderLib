@@ -229,6 +229,11 @@ namespace TestApp
                 string timestamp = DateTime.Now.ToString("yyyy-MM-dd HH-mm-ss-ff");
                 videoPath = Path.Combine(Path.GetTempPath(), "ScreenRecorder", timestamp, timestamp + GetImageExtension());
             }
+            else if (CurrentRecordingMode == RecorderMode.Gif)
+            {
+                string timestamp = DateTime.Now.ToString("yyyy-MM-dd HH-mm-ss");
+                videoPath = Path.Combine(Path.GetTempPath(), "ScreenRecorder", timestamp, timestamp + ".gif");
+            }
             _progressTimer = new DispatcherTimer();
             _progressTimer.Tick += _progressTimer_Tick;
             _progressTimer.Interval = TimeSpan.FromSeconds(1);

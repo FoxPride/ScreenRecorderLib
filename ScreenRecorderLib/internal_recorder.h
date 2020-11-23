@@ -13,11 +13,14 @@
 #include <vector>
 #include <map>
 #include <evr.h>
+
 #include <DirectXMath.h>
 #include <mfreadwrite.h>
 #include "fifo_map.h"
 #include "audio_prefs.h"
 #include "mouse_pointer.h"
+#include "gif.h"
+
 typedef void(__stdcall *CallbackCompleteFunction)(std::wstring, nlohmann::fifo_map<std::wstring, int>);
 typedef void(__stdcall *CallbackStatusChangedFunction)(int);
 typedef void(__stdcall *CallbackErrorFunction)(std::wstring);
@@ -26,6 +29,7 @@ typedef void(__stdcall *CallbackSnapshotFunction)(std::wstring);
 #define MODE_VIDEO 0
 #define MODE_SLIDESHOW 1
 #define MODE_SNAPSHOT 2
+#define MODE_GIF 3
 
 #define STATUS_IDLE 0
 #define STATUS_RECORDING 1
@@ -123,6 +127,8 @@ private:
 	IMFSinkWriter *m_SinkWriter = nullptr;
 	ID3D11Device *m_Device = nullptr;
 
+	GifWriter gifWriter;
+
 	bool m_LastFrameHadAudio = false;
 	HRESULT m_EncoderResult = S_FALSE;
 	HHOOK m_Mousehook;
@@ -180,6 +186,7 @@ private:
 	void SetViewPort(ID3D11DeviceContext *deviceContext, UINT Width, UINT Height);
 	std::wstring GetImageExtension();
 	std::wstring GetVideoExtension();
+	std::wstring GetGifExtension();
 	bool IsSnapshotsWithVideoEnabled() { return (m_RecorderMode == MODE_VIDEO) && m_TakesSnapshotsWithVideo; }
 	HRESULT RenderFrame(FrameWriteModel& model);
 	HRESULT ConfigureOutputDir(std::wstring path);

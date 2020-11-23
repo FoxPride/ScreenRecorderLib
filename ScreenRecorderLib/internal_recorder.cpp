@@ -300,6 +300,9 @@ std::wstring internal_recorder::GetImageExtension() {
 std::wstring internal_recorder::GetVideoExtension() {
 	return L".mp4";
 }
+std::wstring internal_recorder::GetGifExtension() {
+	return L".gif";
+}
 
 HRESULT internal_recorder::ConfigureOutputDir(std::wstring path) {
 	m_OutputFullPath = path;
@@ -324,8 +327,25 @@ HRESULT internal_recorder::ConfigureOutputDir(std::wstring path) {
 			RecordingFailedCallback(L"Failed to create output folder: " + s2ws(ec.message()));
 		return E_FAIL;
 	}
-	if (m_RecorderMode == MODE_VIDEO || m_RecorderMode == MODE_SNAPSHOT) {
-		wstring ext = m_RecorderMode == MODE_VIDEO ? GetVideoExtension() : GetImageExtension();
+	if (m_RecorderMode == MODE_VIDEO || m_RecorderMode == MODE_SNAPSHOT || m_RecorderMode == MODE_GIF) {
+		wstring ext;
+		
+		switch (m_RecorderMode)
+		{
+			case MODE_VIDEO:
+				ext = GetVideoExtension();
+				break;
+			case MODE_SNAPSHOT:
+				ext = GetImageExtension();
+				break;
+			case MODE_GIF:
+				ext = GetGifExtension();
+				break;			
+			default:
+				ext = GetVideoExtension();
+				break;
+		}
+		
 		LPWSTR pStrExtension = PathFindExtension(path.c_str());
 		if (pStrExtension == nullptr || pStrExtension[0] == 0)
 		{
@@ -482,6 +502,10 @@ HRESULT internal_recorder::BeginRecording(std::wstring path, IStream *stream) {
 				RETURN_ON_BAD_HR(hr = InitializeVideoSinkWriter(m_OutputFullPath, outputStream, m_Device, sourceRect, destRect, outputDuplDesc.Rotation, &m_SinkWriter, &m_VideoStreamIndex, &m_AudioStreamIndex));
 			}
 
+			if (m_RecorderMode == MODE_GIF) {
+				GifBegin(&gifWriter, m_OutputFullPath.c_str(), m_DestRect.right, m_DestRect.bottom, 1000 / m_VideoFps);
+			}
+
 			if (RecordingStatusChangedCallback != nullptr) {
 				RecordingStatusChangedCallback(STATUS_RECORDING);
 				DEBUG("Changed Recording Status to Recording");
@@ -599,8 +623,7 @@ HRESULT internal_recorder::BeginRecording(std::wstring path, IStream *stream) {
 					return hr;
 				}
 
-				if (m_RecorderMode == MODE_SLIDESHOW
-					|| m_RecorderMode == MODE_SNAPSHOT) {
+				if (m_RecorderMode == MODE_SLIDESHOW || m_RecorderMode == MODE_SNAPSHOT || m_RecorderMode == MODE_GIF) {
 
 					if (frameNr == 0 && FrameInfo.AccumulatedFrames == 0) {
 						continue;
@@ -665,7 +688,7 @@ HRESULT internal_recorder::BeginRecording(std::wstring path, IStream *stream) {
 							pPreviousFrameCopy.Release();
 						}
 						//Copy new frame to pPreviousFrameCopy
-						if (m_RecorderMode == MODE_VIDEO || m_RecorderMode == MODE_SLIDESHOW) {
+						if (m_RecorderMode == MODE_VIDEO || m_RecorderMode == MODE_SLIDESHOW || m_RecorderMode == MODE_GIF) {
 							RETURN_ON_BAD_HR(hr = m_Device->CreateTexture2D(&sourceFrameDesc, nullptr, &pPreviousFrameCopy));
 							m_ImmediateContext->CopyResource(pPreviousFrameCopy, pFrameCopy);
 							SetDebugName(pPreviousFrameCopy, "PreviousFrameCopy");
@@ -690,7 +713,7 @@ HRESULT internal_recorder::BeginRecording(std::wstring path, IStream *stream) {
 							// Copy the current frame for a separate thread to write it to a file asynchronously.
 							// Assuming previous file writing is already done.
 							m_ImmediateContext->CopyResource(pFrameCopyForSnapshotsWithVideo, pFrameCopy);
-							WriteFrameToImageAsync(pFrameCopyForSnapshotsWithVideo, snapshotPath.c_str());
+							WriteFrameToImageAsync(pFrameCopyForSnapshotsWithVideo, snapshotPath);
 						}
 					}
 
@@ -708,7 +731,7 @@ HRESULT internal_recorder::BeginRecording(std::wstring path, IStream *stream) {
 						hr = S_OK;
 						break;
 					}
-					if ((m_RecorderMode == MODE_SLIDESHOW || m_RecorderMode == MODE_SNAPSHOT) && !isDestRectEqualToSourceRect) {
+					if ((m_RecorderMode == MODE_SLIDESHOW || m_RecorderMode == MODE_SNAPSHOT || m_RecorderMode == MODE_GIF) && !isDestRectEqualToSourceRect) {
 						pFrameCopy = CropFrame(pFrameCopy, destFrameDesc, destRect);
 					}
 					FrameWriteModel model;
@@ -738,11 +761,11 @@ HRESULT internal_recorder::BeginRecording(std::wstring path, IStream *stream) {
 				if (gotMousePointer) {
 					DrawMousePointer(pPreviousFrameCopy, pMousePointer.get(), PtrInfo, screenRotation, duration);
 				}
-				if ((m_RecorderMode == MODE_SLIDESHOW || m_RecorderMode == MODE_SNAPSHOT) && !isDestRectEqualToSourceRect) {
+				if ((m_RecorderMode == MODE_SLIDESHOW || m_RecorderMode == MODE_SNAPSHOT || m_RecorderMode == MODE_GIF) && !isDestRectEqualToSourceRect) {
 					pPreviousFrameCopy = CropFrame(pPreviousFrameCopy, destFrameDesc, destRect);
 				}
 				FrameWriteModel model;
-				RtlZeroMemory(&model, sizeof(model));
+				RtlZeroMemory(&model, sizeof model);
 				model.Frame = pPreviousFrameCopy;
 				model.Duration = duration;
 				model.StartPos = lastFrameStartPos;
@@ -757,6 +780,11 @@ HRESULT internal_recorder::BeginRecording(std::wstring path, IStream *stream) {
 		.then([this, token](HRESULT recordingResult) {
 		INFO("Cleaning up resources");
 		HRESULT cleanupResult = S_OK;
+
+		if (m_RecorderMode == MODE_GIF)
+		{
+			GifEnd(&gifWriter);
+		}
 		if (m_SinkWriter) {
 			cleanupResult = m_SinkWriter->Finalize();
 			if (FAILED(cleanupResult)) {
@@ -1400,7 +1428,7 @@ ID3D11Texture2D * internal_recorder::CropFrame(ID3D11Texture2D * frame, D3D11_TE
 	CComPtr<ID3D11Texture2D> pCroppedFrameCopy = nullptr;
 	HRESULT hr = m_Device->CreateTexture2D(&frameDesc, nullptr, &pCroppedFrameCopy);
 	D3D11_BOX sourceRegion;
-	RtlZeroMemory(&sourceRegion, sizeof(sourceRegion));
+	RtlZeroMemory(&sourceRegion, sizeof sourceRegion);
 	sourceRegion.left = destRect.left;
 	sourceRegion.right = destRect.right;
 	sourceRegion.top = destRect.top;
@@ -1485,6 +1513,15 @@ HRESULT internal_recorder::RenderFrame(FrameWriteModel & model) {
 		hr = WriteFrameToImage(model.Frame, m_OutputFullPath);
 		TRACE(L"Wrote snapshot to %s", m_OutputFullPath.c_str());
 	}
+	else if (m_RecorderMode == MODE_GIF) {
+		//GifWriteFrame(&gifWriter, model.Frame, m_DestRect.right, m_DestRect.bottom, 1000 / m_VideoFps); //todo
+		std::vector<uint8_t> black(m_DestRect.right * m_DestRect.bottom * 4, 0);
+		std::vector<uint8_t> white(m_DestRect.right * m_DestRect.bottom * 4, 255);
+
+		GifWriteFrame(&gifWriter, black.data(), m_DestRect.right, m_DestRect.bottom, 1000 / m_VideoFps);
+		GifWriteFrame(&gifWriter, white.data(), m_DestRect.right, m_DestRect.bottom, 1000 / m_VideoFps);
+		TRACE(L"Wrote gif frame to %s", m_OutputFullPath.c_str());
+	}	
 	model.Frame.Release();
 
 	return hr;
